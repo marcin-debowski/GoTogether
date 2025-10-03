@@ -1,10 +1,13 @@
 import "./App.css";
+import Sidebar from "./components/layout/Sidebar";
+import Content from "./components/layout/Content";
 
 function App() {
   return (
-    <>
-      <div>Frontend</div>
-    </>
+    <div className='flex h-screen top-0 left-0 w-full'>
+      <Sidebar />
+      <Content />
+    </div>
   );
 }
 
