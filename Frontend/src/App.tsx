@@ -1,10 +1,14 @@
 import "./App.css";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 import AppRouter from "./routes/AppRouter";
 
 function App() {
   return (
     <>
-      <AppRouter />
+      {/* <Register /> */}
+      <Login />
+      {/* <AppRouter /> */}
     </>
   );
 }
