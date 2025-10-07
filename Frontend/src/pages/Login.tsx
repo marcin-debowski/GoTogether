@@ -9,7 +9,12 @@ function Login() {
   return (
     <form className='flex flex-col items-center justify-center min-h-screen bg-gray-100'>
       <label htmlFor='login'>Login</label>
-      <input onChange={handleChange} type='text' id='login' className='border border-gray-300 p-2 rounded mb-4' />
+      <input
+        onChange={handleChange}
+        type='text'
+        id='login'
+        className='border border-gray-300 p-2 rounded mb-4'
+      />
       <label htmlFor='password'>Password</label>
       <input
         onChange={handleChange}
