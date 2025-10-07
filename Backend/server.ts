@@ -3,6 +3,7 @@ import cookieParser from "cookie-parser";
 import dotenv from "dotenv";
 import connectDB from "./config/db";
 import authRoutes from "./routes/authRoutes";
+import cors from "cors";
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -11,10 +12,6 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
-
-app.get("/", (req, res) => {
-  res.send("API running");
-});
 
 connectDB()
   .then(() => {
