@@ -1,11 +1,17 @@
 import React from "react";
 import axios from "axios";
+import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function Login() {
   const [form, setForm] = React.useState({ login: "", password: "" });
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { refresh } = useAuth();
+  const redirectTo = (location.state as any)?.from?.pathname || "/";
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm({ ...form, [name]: value });
@@ -25,7 +31,10 @@ function Login() {
         },
         { withCredentials: true }
       );
+      await refresh();
       setSuccess(true);
+      setForm({ login: "", password: "" });
+      navigate(redirectTo, { replace: true });
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || "Błąd logowania");
     } finally {
