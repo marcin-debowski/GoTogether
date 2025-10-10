@@ -8,7 +8,7 @@ RUN npm install
 
 COPY . .
 
-ENV PORT=4000
+ENV dotenv_config_path=/app/backend/.env
 
 EXPOSE 4000
 

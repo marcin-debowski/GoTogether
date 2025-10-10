@@ -1,11 +1,25 @@
 import express from "express";
+import cookieParser from "cookie-parser";
+import dotenv from "dotenv";
+import connectDB from "./config/db";
+import authRoutes from "./routes/authRoutes";
+import cors from "cors";
+dotenv.config();
 const app = express();
-const port = 4000;
+const PORT = process.env.PORT || 4000;
 
-app.get("/", (req, res) => {
-  res.send("Hello World!");
-});
+app.use(express.json());
+app.use(cookieParser());
 
-app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
-});
+app.use("/api/auth", authRoutes);
+
+connectDB()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error("Failed to connect to the database", error);
+    process.exit(1);
+  });
