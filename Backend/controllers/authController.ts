@@ -29,7 +29,11 @@ export const register = async (req: Request, res: Response) => {
       return res.status(409).json({ message: "Użytkownik już istnieje" });
     }
 
-    const user = await User.create({ name, email, password });
+    const user = await User.create({
+      name: String(name).trim(),
+      email: String(email).trim(),
+      password,
+    });
     const anyUser: any = user; // cast for _id access
     const token = generateToken(anyUser._id.toString());
     setTokenCookie(res, token);

@@ -11,11 +11,16 @@ import RequireAuth from "../components/auth/RequireAuth";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 
 import type { ReactElement } from "react";
+import { useLocation } from "react-router-dom";
 
 function PublicOnly({ children }: { children: ReactElement }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return <div />; // spinner placeholder
-  if (user) return <Navigate to='/' replace />;
+  if (user) {
+    const dest = (location.state as any)?.from?.pathname || "/";
+    return <Navigate to={dest} replace />;
+  }
   return children;
 }
 

@@ -1,6 +1,6 @@
 import React from "react";
 import axios from "axios";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 function Login() {
@@ -67,6 +67,13 @@ function Login() {
         className='border border-gray-300 p-2 rounded mb-4 w-64'
         required
       />
+      <p className='text-sm text-gray-500 mb-4'>
+        Jeśli nie masz konta,{" "}
+        <Link to='/register' className='text-blue-500'>
+          {" "}
+          zarejestruj się.
+        </Link>
+      </p>
       <button type='submit' disabled={loading} className='bg-blue-500 text-white p-2 rounded'>
         {loading ? "Logowanie..." : "Zaloguj"}
       </button>
