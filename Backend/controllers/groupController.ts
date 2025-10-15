@@ -21,8 +21,17 @@ function parseDate(v: unknown): Date | undefined {
 /**
  * POST /api/groups
  * Input (JSON body): { name: string, place?: string, startDate?: string|Date, endDate?: string|Date }
- * Output: 201 { group } | 400/401/409/500
- * Wymaga autoryzacji (req.user)
+ * Behavior:
+ *  - Generuje unikalny slug na podstawie 'name' (slugify + sufiksy -2, -3, ... w razie kolizji)
+ *  - ownerId ustawiany z req.user
+ *  - Tworzy Membership dla zakładającego: role "admin", status "active"
+ * Output:
+ *  - 201 { _id, name, slug, place?, startDate?, endDate?, ... }
+ *  - 400 gdy brak nazwy lub niepoprawne daty
+ *  - 401 gdy brak autoryzacji
+ *  - 409 gdy kolizja sluga (unikalne)
+ *  - 500 w przypadku błędu serwera
+ * Auth: wymagane (req.user)
  */
 export const createGroup = async (req: Request, res: Response) => {
   // @ts-ignore
@@ -46,8 +55,10 @@ export const createGroup = async (req: Request, res: Response) => {
   if (!name) {
     return res.status(400).json({ message: "Nazwa grupy jest wymagana" });
   }
-  if (startDate && endDate && startDate > endDate) {
-    return res.status(400).json({ message: "Data zakończenia musi być po dacie rozpoczęcia" });
+  if (startDate && endDate && (startDate > endDate || startDate === endDate)) {
+    return res
+      .status(400)
+      .json({ message: "Data zakończenia nie moze być przed datą rozpoczęcia" });
   }
 
   const session = await mongoose.startSession();
@@ -79,7 +90,6 @@ export const createGroup = async (req: Request, res: Response) => {
             place,
             startDate,
             endDate,
-            // membersCount: 1,
           } as any,
         ],
         { session }
@@ -112,8 +122,105 @@ export const createGroup = async (req: Request, res: Response) => {
   }
 };
 
-export const getGroup = async (req: Request, res: Response) => {};
+/**
+ * GET /api/groups
+ * Behavior:
+ *  - Zwraca lekką listę grup użytkownika (bez populate)
+ *  - 2 kroki: Membership (tylko ID) -> Group (tylko wybrane pola)
+ * Output:
+ *  - 200 { groups: Array<{ _id, name, slug, membersCount? }> }
+ *  - 401 gdy brak autoryzacji
+ */
+export const listGroups = async (req: Request, res: Response) => {
+  // @ts-ignore
+  const currentUser = req.user;
+  if (!currentUser?._id) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
 
+  try {
+    // 1) weź tylko ID grup z Membership (covered index: { userId, status, groupId })
+    const mems = await Membership.find(
+      { userId: currentUser._id, status: "active" },
+      { groupId: 1, _id: 0 }
+    ).lean();
+
+    const groupIds = mems.map((m) => m.groupId);
+    if (groupIds.length === 0) {
+      return res.status(200).json({ groups: [] });
+    }
+
+    // 2) pobierz lekkie dane grup
+    const groups = await Group.find(
+      { _id: { $in: groupIds } },
+      { name: 1, slug: 1, membersCount: 1 }
+    )
+      .sort({ name: 1 })
+      .lean();
+
+    return res.status(200).json({ groups });
+  } catch (error) {
+    console.error("Error listing groups:", error);
+    return res.status(500).json({ error: "Failed to list groups" });
+  }
+};
+
+/**
+ * GET /api/groups/:slug
+ * Params:
+ *  - slug: string
+ * Behavior:
+ *  - Zwraca pełne dane grupy po slug
+ *  - (opcjonalnie) sprawdza, że użytkownik jest członkiem
+ * Output:
+ *  - 200 { group }
+ *  - 403 jeśli nie jest członkiem (jeśli włączona weryfikacja)
+ *  - 404 gdy nie znaleziono
+ */
+export const getGroup = async (req: Request, res: Response) => {
+  // @ts-ignore
+  const currentUser = req.user;
+  const { slug } = req.params;
+
+  try {
+    const group = await Group.findOne({ slug }).lean();
+    if (!group) return res.status(404).json({ message: "Group not found" });
+
+    // Weryfikacja członkostwa (włącz, jeśli dostęp ma być tylko dla członków)
+    const isMember = await Membership.exists({
+      userId: currentUser?._id,
+      groupId: group._id,
+      status: "active",
+    });
+    if (!isMember) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    return res.status(200).json({ group });
+  } catch (error) {
+    console.error("Error getting group:", error);
+    return res.status(500).json({ error: "Failed to get group" });
+  }
+};
+
+/**
+ * POST /api/groups/:slug/members
+ * Params:
+ *  - slug: string (slug grupy)
+ * Input (JSON body):
+ *  - { email: string } – email użytkownika, którego chcesz dodać
+ * Behavior:
+ *  - Tylko użytkownik z Membership.role = "admin" i status = "active" w tej grupie może dodawać
+ *  - Upsert do Membership: { userId, groupId, role: "member", status: "active", joinedAt }
+ * Output:
+ *  - 200 { message: "Member added to group" | "User is already a member" }
+ *  - 400 gdy brakuje slug lub email
+ *  - 401 gdy brak autoryzacji
+ *  - 403 gdy brak uprawnień admina w grupie
+ *  - 404 gdy nie znaleziono grupy lub użytkownika
+ *  - 500 w przypadku błędu serwera
+ * Auth: wymagane (admin grupy)
+ */
 export const addMemberToGroup = async (req: Request, res: Response) => {
   // @ts-ignore
   const currentUser = req.user;
@@ -172,4 +279,18 @@ export const addMemberToGroup = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * DELETE /api/groups/:slug/members
+ * Params:
+ *  - slug: string (slug grupy)
+ * Input (JSON body):
+ *  - { email: string } lub { userId: string } – użytkownik do usunięcia (zależnie od implementacji)
+ * Behavior:
+ *  - Tylko Membership.role = "admin" (status "active") może usuwać członków
+ *  - Usunięcie wpisu z Membership; opcjonalnie dekrementacja groups.membersCount
+ * Output:
+ *  - 204 No Content przy sukcesie
+ *  - 400/401/403/404/500 odpowiednio dla błędów walidacji, autoryzacji itp.
+ * Auth: wymagane (admin grupy)
+ */
 export const removeMember = async (req: Request, res: Response) => {};
