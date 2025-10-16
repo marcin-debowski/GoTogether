@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import CreateGroup from "./CreateGroup";
 import axios from "axios";
 
 function ChooseGroup() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [showCreate, setShowCreate] = useState(false);
   const [value, setValue] = useState("");
 
@@ -13,10 +16,15 @@ function ChooseGroup() {
 
   function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const v = e.target.value;
-    setValue(v);
     if (v === "add") {
       setShowCreate(true);
+      return;
     }
+    setValue(v);
+    // derive current child route from URL: /:slug/:child
+    const parts = location.pathname.split("/").filter(Boolean);
+    const currentChild = parts[1] || "dates";
+    navigate(`/${v}/${currentChild}`);
   }
 
   const refetch = useCallback(async (signal?: AbortSignal) => {
@@ -33,10 +41,14 @@ function ChooseGroup() {
       setValue((prev) => {
         if (groups.length === 0) return "";
         const slugs = groups.map((g) => g.slug);
-        if (!prev || (prev !== "add" && !slugs.includes(prev))) {
-          return groups[0].slug;
-        }
-        return prev;
+        const parts = location.pathname.split("/").filter(Boolean);
+        const routeSlug = parts[0];
+        // 1) jeśli w URL jest slug i istnieje na liście, użyj go
+        if (routeSlug && slugs.includes(routeSlug)) return routeSlug;
+        // 2) zachowaj poprzedni wybór, jeśli nadal jest dostępny
+        if (prev && prev !== "add" && slugs.includes(prev)) return prev;
+        // 3) fallback: pierwsza dostępna grupa
+        return groups[0].slug;
       });
     } catch (err: any) {
       if (axios.isCancel?.(err) || err?.name === "CanceledError") return;
@@ -51,6 +63,16 @@ function ChooseGroup() {
     void refetch(controller.signal);
     return () => controller.abort();
   }, [refetch]);
+
+  // Syncuj wartość selecta, gdy URL slug zmieni się ręcznie/nawigacją
+  useEffect(() => {
+    const parts = location.pathname.split("/").filter(Boolean);
+    const routeSlug = parts[0];
+    if (!routeSlug) return;
+    if (groupList.some((g) => g.slug === routeSlug)) {
+      setValue(routeSlug);
+    }
+  }, [location.pathname, groupList]);
 
   return (
     <div className='relative'>
@@ -87,6 +109,10 @@ function ChooseGroup() {
           onClose={() => setShowCreate(false)}
           onCreated={(group) => {
             if (group?.slug) setValue(group.slug);
+            // after creating, navigate to new slug with current child route
+            const parts = location.pathname.split("/").filter(Boolean);
+            const currentChild = parts[1] || "dates";
+            navigate(`/${group.slug}/${currentChild}`);
             void refetch();
           }}
         />

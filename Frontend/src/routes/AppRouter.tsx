@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from "../context/AuthContext";
 
 import type { ReactElement } from "react";
 import { useLocation } from "react-router-dom";
+import { ChooseGroupContent } from "../components/layout/ChoseGroupContent";
 
 function PublicOnly({ children }: { children: ReactElement }) {
   const { user, loading } = useAuth();
@@ -49,6 +50,14 @@ function AppRouter() {
           {/* Protected */}
           <Route
             path='/'
+            element={
+              <RequireAuth>
+                <ChooseGroupContent />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path='/:slug'
             element={
               <RequireAuth>
                 <Content />
