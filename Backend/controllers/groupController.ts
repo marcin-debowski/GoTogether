@@ -270,6 +270,11 @@ export const addMemberToGroup = async (req: Request, res: Response) => {
       // @ts-ignore
       result.upsertedCount === 1 || !!(result as any).upsertedId;
 
+    // Jeśli faktycznie dodaliśmy nowego członka, zwiększ licznik grupy
+    if (inserted) {
+      await Group.updateOne({ _id: group._id }, { $inc: { membersCount: 1 } });
+    }
+
     return res.status(200).json({
       message: inserted ? "Member added to group" : "User is already a member",
     });
@@ -279,18 +284,160 @@ export const addMemberToGroup = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * DELETE /api/groups/:slug/members
- * Params:
- *  - slug: string (slug grupy)
- * Input (JSON body):
- *  - { email: string } lub { userId: string } – użytkownik do usunięcia (zależnie od implementacji)
- * Behavior:
- *  - Tylko Membership.role = "admin" (status "active") może usuwać członków
- *  - Usunięcie wpisu z Membership; opcjonalnie dekrementacja groups.membersCount
- * Output:
- *  - 204 No Content przy sukcesie
- *  - 400/401/403/404/500 odpowiednio dla błędów walidacji, autoryzacji itp.
- * Auth: wymagane (admin grupy)
- */
-export const removeMember = async (req: Request, res: Response) => {};
+export const membersList = async (req: Request, res: Response) => {
+  // @ts-ignore
+  const currentUser = req.user;
+  const { slug } = req.params;
+  const { limit: rawLimit, after: rawAfter, search: rawSearch } = req.query as any;
+
+  if (!currentUser?._id) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  // Parse pagination
+  let limit = Number.parseInt(String(rawLimit ?? "20"), 10);
+  if (Number.isNaN(limit) || limit <= 0) limit = 20;
+  limit = Math.min(limit, 100); // cap
+
+  let afterId: mongoose.Types.ObjectId | undefined;
+  if (rawAfter) {
+    try {
+      afterId = new mongoose.Types.ObjectId(String(rawAfter));
+    } catch (e) {
+      return res.status(400).json({ message: "Invalid 'after' cursor" });
+    }
+  }
+
+  const search = typeof rawSearch === "string" && rawSearch.trim() ? rawSearch.trim() : undefined;
+  const searchRegex = search
+    ? new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")
+    : undefined;
+
+  try {
+    const group = await Group.findOne({ slug }).lean();
+    if (!group) return res.status(404).json({ message: "Group not found" });
+
+    // Weryfikacja członkostwa
+    const isMember = await Membership.exists({
+      userId: currentUser._id,
+      groupId: group._id,
+      status: "active",
+    });
+    if (!isMember) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    // Aggregation: page on Membership._id for stable cursor, join Users, optional search
+    const match: any = { groupId: group._id, status: "active" };
+    if (afterId) match._id = { $gt: afterId };
+
+    const pipeline: any[] = [
+      { $match: match },
+      { $sort: { _id: 1 } },
+      { $limit: limit + 1 }, // fetch one extra to compute nextCursor
+      {
+        $lookup: {
+          from: "users",
+          localField: "userId",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: "$user" },
+    ];
+
+    if (searchRegex) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { "user.name": { $regex: searchRegex } },
+            { "user.email": { $regex: searchRegex } },
+          ],
+        },
+      });
+    }
+
+    pipeline.push({
+      $project: {
+        membershipId: "$_id",
+        role: 1,
+        joinedAt: 1,
+        user: { _id: 1, name: 1, email: 1 },
+        _id: 0,
+      },
+    });
+
+    const rows = await Membership.aggregate(pipeline);
+
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const nextCursor = hasMore ? String(page[page.length - 1].membershipId) : null;
+
+    const members = page.map((r: any) => ({
+      _id: r.user._id,
+      name: r.user.name,
+      email: r.user.email,
+      role: r.role,
+      joinedAt: r.joinedAt,
+      isOwner: r.user._id.toString() === group.ownerId.toString(),
+    }));
+
+    // totalCount: korzystamy z licznika w dokumencie grupy (aktualizowany przy add/remove)
+    const totalCount = (group as any).membersCount ?? undefined;
+
+    return res.status(200).json({ members, nextCursor, totalCount });
+  } catch (error) {
+    console.error("Error getting members list:", error);
+    return res.status(500).json({ error: "Failed to get members list" });
+  }
+};
+
+export const removeMember = async (req: Request, res: Response) => {
+  // @ts-ignore
+  const currentUser = req.user;
+  const { slug, memberId } = req.params;
+
+  if (!currentUser?._id) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    const [group, userToRemove] = await Promise.all([
+      Group.findOne({ slug }),
+      User.findById(memberId),
+    ]);
+
+    if (!group) return res.status(404).json({ message: "Group not found" });
+    if (!userToRemove) return res.status(404).json({ message: "User not found" });
+
+    // tylko ADMIN w Membership może usuwać członków
+    const adminMembership = await Membership.findOne({
+      userId: currentUser._id,
+      groupId: group._id,
+      role: "admin",
+      status: "active",
+    });
+    if (!adminMembership) {
+      return res.status(403).json({ message: "Only group admin can remove members" });
+    }
+
+    // Usuń członkostwo
+    const result = await Membership.deleteOne({
+      userId: userToRemove._id,
+      groupId: group._id,
+    });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: "Membership not found" });
+    }
+
+    // Zmniejsz licznik członków o 1 (nie pozwoli to spaść poniżej zera, jeśli licznik był 0 to będzie -1,
+    // zakładamy jednak poprawność danych — alternatywnie można dodać dodatkową walidację)
+    await Group.updateOne({ _id: group._id }, { $inc: { membersCount: -1 } });
+
+    return res.status(200).json({ message: "Member removed from group" });
+  } catch (error) {
+    console.error("Error removing member from group:", error);
+    return res.status(500).json({ error: "Failed to remove member from group" });
+  }
+};
