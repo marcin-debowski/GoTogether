@@ -18,16 +18,25 @@ function Members() {
   const [totalCount, setTotalCount] = useState<number | null>(null);
 
   type ToastType = "success" | "error" | "info";
-  type Toast = { id: number; type: ToastType; message: string };
+  type Toast = { id: number; type: ToastType; message: string; leaving?: boolean };
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastIdRef = useRef(0);
 
   const showToast = (message: string, type: ToastType = "info") => {
     const id = ++toastIdRef.current;
+    const displayMs = 5000;
+    const fadeMs = 1000;
     setToasts((prev) => [...prev, { id, type, message }]);
+
+    // trigger fade-out a bit before removal
+    window.setTimeout(() => {
+      setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
+    }, Math.max(0, displayMs - fadeMs));
+
+    // remove after animation completes
     window.setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
+    }, displayMs);
   };
 
   useEffect(() => {
@@ -189,17 +198,18 @@ function Members() {
         {typeof totalCount === "number" ? ` / ${totalCount}` : ""})
       </h1>
       {/* Toasts */}
-      <div className='fixed bottom-4 right-4 z-50 space-y-2'>
+      <div className='fixed bottom-4 right-4 z-50 space-y-2 pointer-events-none'>
         {toasts.map((t) => (
           <div
             key={t.id}
             className={
-              "rounded px-3 py-2 text-sm shadow " +
+              "rounded px-3 py-2 text-sm shadow transition ease-out duration-1000 transform pointer-events-auto " +
               (t.type === "success"
                 ? "bg-green-500 text-white"
                 : t.type === "error"
                 ? "bg-red-500 text-white"
-                : "bg-gray-800 text-white")
+                : "bg-gray-800 text-white") +
+              (t.leaving ? " opacity-0 translate-y-2" : " opacity-100 translate-y-0")
             }
           >
             {t.message}
@@ -223,7 +233,7 @@ function Members() {
           {addLoading ? "Adding..." : "Add Member"}
         </button>
       </form>
-      {error && <p className='text-red-600 mb-2 text-sm'>{error}</p>}
+      {/* {error && <p className='text-red-600 mb-2 text-sm'>{error}</p>} */}
       {members.map((m) => (
         <div key={m._id} className='border-b border-gray-200 py-2'>
           <p className='flex items-center gap-2 max-w-6xl'>
