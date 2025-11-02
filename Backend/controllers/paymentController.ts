@@ -8,7 +8,7 @@ import { Membership } from "../models/Membership";
 /**
  * POST /api/groups/:slug/expenses
  * Dodaje nowy wydatek z podziałem między uczestników.
- * Body: { payerId, description, category, date, amountCents, currency?, splits: [{userId, amountCents}] }
+ * Body: { payerId, description, category, date, amountCents, splits: [{userId, amountCents}] }
  * Walidacja: suma splitów === amountCents, uczestnicy są członkami grupy
  */
 export const addPayment = async (req: Request, res: Response) => {
