@@ -9,6 +9,8 @@ import Login from "../pages/Login";
 import Register from "../pages/Register";
 import RequireAuth from "../components/auth/RequireAuth";
 import { AuthProvider, useAuth } from "../context/AuthContext";
+import MyAttractions from "../components/AttractionsGroup/MyAttractions";
+import OtherAttractions from "../components/AttractionsGroup/OtherAttractions";
 
 import type { ReactElement } from "react";
 import { useLocation } from "react-router-dom";
@@ -67,7 +69,11 @@ function AppRouter() {
             <Route index element={<Navigate to='dates' replace />} />
             <Route path='dates' element={<Dates />} />
             <Route path='places' element={<Places />} />
-            <Route path='attractions' element={<Attractions />} />
+            <Route path='attractions' element={<Attractions />}>
+              <Route index element={<Navigate to='mycalendar' replace />} />
+              <Route path='mycalendar' element={<MyAttractions />} />
+              <Route path='othercalendar' element={<OtherAttractions />} />
+            </Route>
             <Route path='costs' element={<Costs />} />
             <Route path='members' element={<Members />} />
           </Route>
