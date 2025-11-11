@@ -153,7 +153,7 @@ export const listGroups = async (req: Request, res: Response) => {
     // 2) pobierz lekkie dane grup
     const groups = await Group.find(
       { _id: { $in: groupIds } },
-      { name: 1, slug: 1, membersCount: 1 }
+      { name: 1, slug: 1, membersCount: 1, place: 1, startDate: 1, endDate: 1 }
     )
       .sort({ name: 1 })
       .lean();

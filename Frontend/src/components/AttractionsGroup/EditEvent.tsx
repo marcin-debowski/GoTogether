@@ -1,22 +1,39 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 
-interface AddEventProps {
-  onClose: () => void;
-  onEventAdded?: () => void;
+interface Event {
+  _id: string;
+  title: string;
+  description: string;
+  durationHours: number;
+  location: string;
 }
 
-function AddEvent({ onClose, onEventAdded }: AddEventProps) {
+interface EditEventProps {
+  event: Event;
+  onClose: () => void;
+  onEventUpdated?: () => void;
+}
+
+function EditEvent({ event, onClose, onEventUpdated }: EditEventProps) {
   const { slug } = useParams<{ slug: string }>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form fields state
-  const [title, setTitle] = useState("");
-  const [location, setLocation] = useState("");
-  const [durationHours, setDurationHours] = useState("");
-  const [description, setDescription] = useState("");
+  // Form fields state - inicjalizowane z event
+  const [title, setTitle] = useState(event.title);
+  const [location, setLocation] = useState(event.location);
+  const [durationHours, setDurationHours] = useState(event.durationHours.toString());
+  const [description, setDescription] = useState(event.description);
+
+  // Update form when event prop changes
+  useEffect(() => {
+    setTitle(event.title);
+    setLocation(event.location);
+    setDurationHours(event.durationHours.toString());
+    setDescription(event.description);
+  }, [event]);
 
   // Toast notifications
   type ToastType = "success" | "error" | "info";
@@ -82,31 +99,56 @@ function AddEvent({ onClose, onEventAdded }: AddEventProps) {
         description: description.trim(),
       };
 
-      console.log("Sending event payload:", payload);
+      console.log("Updating event payload:", payload);
 
-      await axios.post(`/api/events/${slug}/events`, payload, {
+      await axios.put(`/api/events/${slug}/events/${event._id}`, payload, {
         withCredentials: true,
       });
 
-      showToast("Event added successfully!", "success");
-
-      // Reset form
-      setTitle("");
-      setLocation("");
-      setDurationHours("");
-      setDescription("");
+      showToast("Event updated successfully!", "success");
 
       // Odśwież listę eventów
-      if (onEventAdded) {
-        onEventAdded();
+      if (onEventUpdated) {
+        onEventUpdated();
       }
 
       onClose();
     } catch (err: any) {
-      const errorMsg = err.response?.data?.message || "Failed to add event";
+      const errorMsg = err.response?.data?.message || "Failed to update event";
       setError(errorMsg);
       showToast(errorMsg, "error");
-      console.error("Error adding event:", err);
+      console.error("Error updating event:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Are you sure you want to delete this event?")) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      await axios.delete(`/api/events/${slug}/events/${event._id}`, {
+        withCredentials: true,
+      });
+
+      showToast("Event deleted successfully!", "success");
+
+      // Odśwież listę eventów
+      if (onEventUpdated) {
+        onEventUpdated();
+      }
+
+      onClose();
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || "Failed to delete event";
+      setError(errorMsg);
+      showToast(errorMsg, "error");
+      console.error("Error deleting event:", err);
     } finally {
       setLoading(false);
     }
@@ -148,7 +190,7 @@ function AddEvent({ onClose, onEventAdded }: AddEventProps) {
         </button>
 
         <form onSubmit={handleSubmit}>
-          <h2 className='text-xl font-bold mb-4'>Add Event</h2>
+          <h2 className='text-xl font-bold mb-4'>Edit Event</h2>
 
           {error && <div className='mb-4 p-2 bg-red-100 text-red-700 rounded'>{error}</div>}
 
@@ -212,7 +254,15 @@ function AddEvent({ onClose, onEventAdded }: AddEventProps) {
               className='bg-blue-500 text-white rounded px-4 py-2 flex-1 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed'
               disabled={loading}
             >
-              {loading ? "Adding..." : "Add Event"}
+              {loading ? "Updating..." : "Update Event"}
+            </button>
+            <button
+              type='button'
+              onClick={handleDelete}
+              className='bg-red-500 text-white rounded px-4 py-2 hover:bg-red-600 disabled:bg-gray-400 disabled:cursor-not-allowed'
+              disabled={loading}
+            >
+              Delete
             </button>
             <button
               type='button'
@@ -228,4 +278,4 @@ function AddEvent({ onClose, onEventAdded }: AddEventProps) {
     </div>
   );
 }
-export default AddEvent;
+export default EditEvent;

@@ -5,6 +5,7 @@ import connectDB from "./config/db";
 import authRoutes from "./routes/authRoutes";
 import groupRoutes from "./routes/groupRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
+import eventRoutes from "./routes/eventRoutes";
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -15,6 +16,7 @@ app.use(cookieParser());
 app.use("/api/auth", authRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/events", eventRoutes);
 connectDB()
   .then(() => {
     app.listen(PORT, () => {

@@ -2,14 +2,24 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import CreateGroup from "./CreateGroup";
 import axios from "axios";
+import { useGroup } from "../../context/GroupContext";
 
 function ChooseGroup() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showCreate, setShowCreate] = useState(false);
   const [value, setValue] = useState("");
+  const { setCurrentGroup } = useGroup();
 
-  type GroupSummary = { _id: string; name: string; slug: string; membersCount?: number };
+  type GroupSummary = {
+    _id: string;
+    name: string;
+    slug: string;
+    membersCount?: number;
+    place?: string;
+    startDate?: string;
+    endDate?: string;
+  };
   const [groupList, setGroupList] = useState<GroupSummary[]>([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
   const [groupsError, setGroupsError] = useState<string | null>(null);
@@ -73,6 +83,14 @@ function ChooseGroup() {
       setValue(routeSlug);
     }
   }, [location.pathname, groupList]);
+
+  // Aktualizuj GroupContext gdy zmieni się wybrana grupa
+  useEffect(() => {
+    const selectedGroup = groupList.find((g) => g.slug === value);
+    if (selectedGroup) {
+      setCurrentGroup(selectedGroup);
+    }
+  }, [value]);
 
   return (
     <div className='relative'>

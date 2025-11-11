@@ -3,11 +3,22 @@ import ChooseGroup from "../shared/ChooseGroup";
 import MenuButton from "../shared/MenuButton";
 import ProfileSettings from "../shared/ProfileSettings";
 import { useParams } from "react-router-dom";
+import { useGroup } from "../../context/GroupContext";
 
 function Sidebar() {
   const { slug } = useParams<{ slug?: string }>();
   const base = slug ? `/${slug}` : "";
   const [isOpen, setIsOpen] = useState(false);
+  const { currentGroup } = useGroup();
+
+  const formatDateRange = () => {
+    if (!currentGroup?.startDate || !currentGroup?.endDate) {
+      return "No dates set";
+    }
+    const start = new Date(currentGroup.startDate).toLocaleDateString();
+    const end = new Date(currentGroup.endDate).toLocaleDateString();
+    return `${start} - ${end}`;
+  };
 
   return (
     <>
@@ -57,8 +68,14 @@ function Sidebar() {
         <ChooseGroup />
         <img src='/group.png' alt='Logo' className='w-32 h-32 mx-auto rounded-full p-5' />
         <nav className='flex flex-col gap-2 px-4'>
-          <MenuButton label='Date' path={`${base}/dates`} onClick={() => setIsOpen(false)} />
-          <MenuButton label='Place' path={`${base}/places`} onClick={() => setIsOpen(false)} />
+          <div className='flex items-center gap-3 p-2 rounded-lg text-gray-700 bg-gray-100'>
+            <span className='font-medium'>📅 {formatDateRange()}</span>
+          </div>
+          <div className='flex items-center gap-3 p-2 rounded-lg text-gray-700 bg-gray-100'>
+            <span className='font-medium'>📍 {currentGroup?.place || "No place set"}</span>
+          </div>
+          {/* <MenuButton label='Date' path={`${base}/dates`} onClick={() => setIsOpen(false)} />
+          <MenuButton label='Place' path={`${base}/places`} onClick={() => setIsOpen(false)} /> */}
           <MenuButton
             label='Attractions'
             path={`${base}/attractions`}
