@@ -6,6 +6,7 @@ import authRoutes from "./routes/authRoutes";
 import groupRoutes from "./routes/groupRoutes";
 import paymentRoutes from "./routes/paymentRoutes";
 import eventRoutes from "./routes/eventRoutes";
+import eventScheduleRoutes from "./routes/eventScheduleRoutes";
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -17,6 +18,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/events", eventRoutes);
+app.use("/api/groups", eventScheduleRoutes);
 connectDB()
   .then(() => {
     app.listen(PORT, () => {
