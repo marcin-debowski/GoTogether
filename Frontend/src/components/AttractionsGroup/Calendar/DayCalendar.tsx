@@ -24,9 +24,17 @@ interface DayCalendarProps {
   date?: Date;
   dayNumber?: number;
   refreshTrigger?: number;
+  userId?: string | null;
+  isReadOnly?: boolean;
 }
 
-function DayCalendar({ date = new Date(), dayNumber, refreshTrigger }: DayCalendarProps) {
+function DayCalendar({
+  date = new Date(),
+  dayNumber,
+  refreshTrigger,
+  userId,
+  isReadOnly = false,
+}: DayCalendarProps) {
   const { slug } = useParams<{ slug: string }>();
   const [events, setEvents] = useState<EventSchedule[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,8 +51,15 @@ function DayCalendar({ date = new Date(), dayNumber, refreshTrigger }: DayCalend
 
       try {
         const dateStr = date.toISOString().split("T")[0];
+        const params: any = { date: dateStr };
+
+        // Add userId to params if provided
+        if (userId) {
+          params.userId = userId;
+        }
+
         const res = await axios.get(`/api/groups/${slug}/schedule`, {
-          params: { date: dateStr },
+          params,
           withCredentials: true,
         });
         setEvents(res.data || []);
@@ -56,7 +71,7 @@ function DayCalendar({ date = new Date(), dayNumber, refreshTrigger }: DayCalend
     };
 
     fetchEvents();
-  }, [date, slug, refreshTrigger]);
+  }, [date, slug, refreshTrigger, userId]);
 
   // Auto-scroll to first event or current time
   useEffect(() => {
@@ -146,6 +161,24 @@ function DayCalendar({ date = new Date(), dayNumber, refreshTrigger }: DayCalend
     }
   };
 
+  const handleAddToMyCalendar = async (event: any) => {
+    try {
+      await axios.post(
+        `/api/groups/${slug}/schedule`,
+        {
+          eventId: event.eventId._id,
+          startDateTime: event.startDateTime,
+        },
+        { withCredentials: true }
+      );
+
+      alert("Event added to your calendar!");
+    } catch (err: any) {
+      console.error("Error adding event:", err);
+      alert(err.response?.data?.message || "Failed to add event to your calendar");
+    }
+  };
+
   return (
     <div className='border rounded-2xl p-2 h-[calc(100%-1rem)] w-full mt-4 flex flex-col'>
       {/* Header */}
@@ -209,17 +242,30 @@ function DayCalendar({ date = new Date(), dayNumber, refreshTrigger }: DayCalend
                       ⏱️ {formatTime(event.startDateTime)} - {formatTime(event.endDateTime)}
                     </div>
 
-                    {/* Delete button (visible on hover) */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteEvent(event._id);
-                      }}
-                      className='absolute top-1 right-1 opacity-0 group-hover:opacity-100 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600 transition-opacity'
-                      title='Delete event'
-                    >
-                      ×
-                    </button>
+                    {/* Delete button (own calendar) or Add button (other user's calendar) */}
+                    {isReadOnly ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleAddToMyCalendar(event);
+                        }}
+                        className='absolute top-1 right-1 opacity-0 group-hover:opacity-100 bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-green-600 transition-opacity'
+                        title='Add to my calendar'
+                      >
+                        +
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteEvent(event._id);
+                        }}
+                        className='absolute top-1 right-1 opacity-0 group-hover:opacity-100 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600 transition-opacity'
+                        title='Delete event'
+                      >
+                        ×
+                      </button>
+                    )}
                   </div>
                 );
               })
