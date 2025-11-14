@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 import axios from "axios";
 import AddEvent from "../../AttractionsGroup/AddEvent";
 import EditEvent from "../../AttractionsGroup/EditEvent";
+import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 
 interface Event {
   _id: string;
@@ -28,6 +30,7 @@ function Events() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -75,6 +78,19 @@ function Events() {
     setRefreshTrigger((prev) => prev + 1);
   };
 
+  const toggleExpanded = (eventId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedEvents((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventId)) {
+        newSet.delete(eventId);
+      } else {
+        newSet.add(eventId);
+      }
+      return newSet;
+    });
+  };
+
   return (
     <div className='flex flex-col rounded-tr-lg h-[calc(100%-1rem)] border-r border-t mt-4 '>
       <div className='flex items-center'>
@@ -99,26 +115,13 @@ function Events() {
           </div>
         ) : (
           events.map((event) => (
-            <div
+            <EventCard
               key={event._id}
-              onClick={() => handleEditEvent(event)}
-              className='border p-4 rounded shadow-md bg-white cursor-pointer hover:shadow-lg hover:border-blue-300 transition-all'
-            >
-              <h3 className='font-bold text-lg mb-2'>{event.title}</h3>
-              <p className='text-gray-600 mb-1'>
-                📍 <span className='font-medium'>Location:</span> {event.location}
-              </p>
-              <p className='text-gray-600 mb-1'>
-                ⏱️ <span className='font-medium'>Duration:</span> {event.durationHours} hours
-              </p>
-              <p className='text-gray-600 mb-2'>
-                👤 <span className='font-medium'>Created by:</span> {event.createdBy.name}
-              </p>
-              <p className='text-gray-700 text-sm'>{event.description}</p>
-              <p className='text-xs text-gray-400 mt-2'>
-                Added: {new Date(event.createdAt).toLocaleDateString()}
-              </p>
-            </div>
+              event={event}
+              isExpanded={expandedEvents.has(event._id)}
+              onToggleExpand={toggleExpanded}
+              onEdit={handleEditEvent}
+            />
           ))
         )}
       </div>
@@ -134,4 +137,96 @@ function Events() {
     </div>
   );
 }
+
+// EventCard component - draggable event
+function EventCard({
+  event,
+  isExpanded,
+  onToggleExpand,
+  onEdit,
+}: {
+  event: Event;
+  isExpanded: boolean;
+  onToggleExpand: (eventId: string, e: React.MouseEvent) => void;
+  onEdit: (event: Event) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: event._id,
+    data: event,
+  });
+
+  const transformStyle = transform ? { transform: CSS.Translate.toString(transform) } : undefined;
+  const style = {
+    ...transformStyle,
+    opacity: isDragging ? 0.5 : 1,
+  } as any;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`border p-4 rounded shadow-md bg-white hover:shadow-lg hover:border-blue-300 transition-all cursor-grab active:cursor-grabbing ${
+        isDragging ? "ring-2 ring-blue-500 opacity-50" : ""
+      }`}
+      {...listeners}
+      {...attributes}
+    >
+      {/* Collapsed View - Always Visible */}
+      <div className='flex items-center justify-between'>
+        <div
+          className='flex-1 cursor-pointer'
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(event);
+          }}
+        >
+          <h3 className='font-bold text-lg'>{event.title}</h3>
+          <p className='text-gray-600 text-sm'>⏱️ {event.durationHours} hours</p>
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleExpand(event._id, e);
+          }}
+          className='ml-2 p-2 hover:bg-gray-100 rounded transition-colors'
+          aria-label={isExpanded ? "Collapse" : "Expand"}
+        >
+          <svg
+            className={`w-5 h-5 transition-transform duration-200 ${
+              isExpanded ? "rotate-180" : ""
+            }`}
+            fill='none'
+            stroke='currentColor'
+            viewBox='0 0 24 24'
+          >
+            <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M19 9l-7 7-7-7' />
+          </svg>
+        </button>
+      </div>
+
+      {/* Expanded View - Conditional */}
+      {isExpanded && (
+        <div
+          className='mt-3 pt-3 border-t cursor-pointer'
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(event);
+          }}
+        >
+          <p className='text-gray-600 mb-1'>
+            📍 <span className='font-medium'>Location:</span> {event.location}
+          </p>
+          <p className='text-gray-600 mb-2'>
+            👤 <span className='font-medium'>Created by:</span> {event.createdBy.name}
+          </p>
+          <p className='text-gray-700 text-sm mb-2'>{event.description}</p>
+          <p className='text-xs text-gray-400'>
+            Added: {new Date(event.createdAt).toLocaleDateString()}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default Events;

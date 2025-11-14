@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { useParams } from "react-router-dom";
+import { useDroppable } from "@dnd-kit/core";
 
 interface EventSchedule {
   _id: string;
@@ -22,9 +23,10 @@ interface EventSchedule {
 interface DayCalendarProps {
   date?: Date;
   dayNumber?: number;
+  refreshTrigger?: number;
 }
 
-function DayCalendar({ date = new Date(), dayNumber }: DayCalendarProps) {
+function DayCalendar({ date = new Date(), dayNumber, refreshTrigger }: DayCalendarProps) {
   const { slug } = useParams<{ slug: string }>();
   const [events, setEvents] = useState<EventSchedule[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,7 +56,7 @@ function DayCalendar({ date = new Date(), dayNumber }: DayCalendarProps) {
     };
 
     fetchEvents();
-  }, [date, slug]);
+  }, [date, slug, refreshTrigger]);
 
   // Auto-scroll to first event or current time
   useEffect(() => {
@@ -80,7 +82,7 @@ function DayCalendar({ date = new Date(), dayNumber }: DayCalendarProps) {
     if (events.length > 0) {
       const firstEventTime = new Date(events[0].startDateTime);
       const firstEventMinutes = firstEventTime.getHours() * 60 + firstEventTime.getMinutes();
-      const scrollPosition = Math.max(0, firstEventMinutes - 120); // 2h before first event
+      const scrollPosition = Math.max(0, firstEventMinutes - 60); // 1h before first event
 
       timelineRef.current.scrollTo({
         top: scrollPosition,
@@ -128,6 +130,22 @@ function DayCalendar({ date = new Date(), dayNumber }: DayCalendarProps) {
   // Renderuj 24 godziny (00:00 - 23:00)
   const hours = Array.from({ length: 24 }, (_, i) => i);
 
+  const handleDeleteEvent = async (scheduleId: string) => {
+    if (!window.confirm("Are you sure you want to delete this event?")) return;
+
+    try {
+      await axios.delete(`/api/groups/${slug}/schedule/${scheduleId}`, {
+        withCredentials: true,
+      });
+
+      // Refresh events
+      setEvents((prev) => prev.filter((e) => e._id !== scheduleId));
+    } catch (err: any) {
+      console.error("Error deleting event:", err);
+      alert(err.response?.data?.message || "Failed to delete event");
+    }
+  };
+
   return (
     <div className='border rounded-2xl p-2 h-[calc(100%-1rem)] w-full mt-4 flex flex-col'>
       {/* Header */}
@@ -152,13 +170,9 @@ function DayCalendar({ date = new Date(), dayNumber }: DayCalendarProps) {
 
           {/* Events Area */}
           <div className='flex-1 relative' style={{ height: `${24 * 60}px` }}>
-            {/* Hour Grid Lines */}
+            {/* Droppable Time Slots */}
             {hours.map((hour) => (
-              <div
-                key={hour}
-                className='absolute left-0 right-0 border-b border-gray-200'
-                style={{ top: `${hour * 60}px` }}
-              />
+              <TimeSlot key={hour} hour={hour} date={date} />
             ))}
 
             {/* Events (Absolute Positioned) */}
@@ -178,7 +192,7 @@ function DayCalendar({ date = new Date(), dayNumber }: DayCalendarProps) {
                 return (
                   <div
                     key={event._id}
-                    className='absolute left-2 right-2 bg-blue-100 border-l-4 border-blue-500 rounded p-2 overflow-hidden hover:shadow-lg transition-shadow cursor-pointer'
+                    className='absolute left-2 right-2 bg-blue-100 border-l-4 border-blue-500 rounded p-2 overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group'
                     style={{
                       top: `${top}px`,
                       height: `${height}px`,
@@ -194,6 +208,18 @@ function DayCalendar({ date = new Date(), dayNumber }: DayCalendarProps) {
                     <div className='text-xs text-gray-500'>
                       ⏱️ {formatTime(event.startDateTime)} - {formatTime(event.endDateTime)}
                     </div>
+
+                    {/* Delete button (visible on hover) */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteEvent(event._id);
+                      }}
+                      className='absolute top-1 right-1 opacity-0 group-hover:opacity-100 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm hover:bg-red-600 transition-opacity'
+                      title='Delete event'
+                    >
+                      ×
+                    </button>
                   </div>
                 );
               })
@@ -202,6 +228,27 @@ function DayCalendar({ date = new Date(), dayNumber }: DayCalendarProps) {
         </div>
       </div>
     </div>
+  );
+}
+
+// TimeSlot component - droppable zone for each hour
+function TimeSlot({ hour, date }: { hour: number; date: Date }) {
+  const dateStr = date.toISOString().split("T")[0];
+  const timeStr = `${hour.toString().padStart(2, "0")}:00`;
+  const slotId = `${dateStr}-${timeStr}-${dateStr}`;
+
+  const { setNodeRef, isOver } = useDroppable({
+    id: slotId,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`absolute left-0 right-0 h-[60px] border-b transition-colors ${
+        isOver ? "bg-blue-100 border-blue-400" : "border-gray-200"
+      }`}
+      style={{ top: `${hour * 60}px` }}
+    />
   );
 }
 
