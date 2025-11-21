@@ -1,4 +1,3 @@
-import { group } from "console";
 import { Schema, model, Types } from "mongoose";
 
 const splitSchema = new Schema(
