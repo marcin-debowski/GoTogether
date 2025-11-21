@@ -9,9 +9,13 @@ import Login from "../pages/Login";
 import Register from "../pages/Register";
 import RequireAuth from "../components/auth/RequireAuth";
 import { AuthProvider, useAuth } from "../context/AuthContext";
+import { GroupProvider } from "../context/GroupContext";
+import MyAttractions from "../components/AttractionsGroup/MyAttractions";
+import OtherAttractions from "../components/AttractionsGroup/OtherAttractions";
 
 import type { ReactElement } from "react";
 import { useLocation } from "react-router-dom";
+import { ChooseGroupContent } from "../components/layout/ChoseGroupContent";
 
 function PublicOnly({ children }: { children: ReactElement }) {
   const { user, loading } = useAuth();
@@ -28,44 +32,58 @@ function AppRouter() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          {/* Public */}
-          <Route
-            path='/login'
-            element={
-              <PublicOnly>
-                <Login />
-              </PublicOnly>
-            }
-          />
-          <Route
-            path='/register'
-            element={
-              <PublicOnly>
-                <Register />
-              </PublicOnly>
-            }
-          />
-          {/* Protected */}
-          <Route
-            path='/'
-            element={
-              <RequireAuth>
-                <Content />
-              </RequireAuth>
-            }
-          >
-            <Route index element={<Navigate to='dates' replace />} />
-            <Route path='dates' element={<Dates />} />
-            <Route path='places' element={<Places />} />
-            <Route path='attractions' element={<Attractions />} />
-            <Route path='costs' element={<Costs />} />
-            <Route path='members' element={<Members />} />
-          </Route>
+        <GroupProvider>
+          <Routes>
+            {/* Public */}
+            <Route
+              path='/login'
+              element={
+                <PublicOnly>
+                  <Login />
+                </PublicOnly>
+              }
+            />
+            <Route
+              path='/register'
+              element={
+                <PublicOnly>
+                  <Register />
+                </PublicOnly>
+              }
+            />
+            {/* Protected */}
+            <Route
+              path='/'
+              element={
+                <RequireAuth>
+                  <ChooseGroupContent />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path='/:slug'
+              element={
+                <RequireAuth>
+                  <Content />
+                </RequireAuth>
+              }
+            >
+              <Route index element={<Navigate to='dates' replace />} />
+              <Route path='dates' element={<Dates />} />
+              <Route path='places' element={<Places />} />
+              <Route path='attractions' element={<Attractions />}>
+                <Route index element={<Navigate to='mycalendar' replace />} />
+                <Route path='mycalendar' element={<MyAttractions />} />
+                <Route path='othercalendar' element={<OtherAttractions />} />
+              </Route>
+              <Route path='costs' element={<Costs />} />
+              <Route path='members' element={<Members />} />
+            </Route>
 
-          {/* Fallback */}
-          <Route path='*' element={<Navigate to='/' replace />} />
-        </Routes>
+            {/* Fallback */}
+            <Route path='*' element={<Navigate to='/' replace />} />
+          </Routes>
+        </GroupProvider>
       </AuthProvider>
     </BrowserRouter>
   );
