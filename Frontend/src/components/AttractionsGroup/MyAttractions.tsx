@@ -133,7 +133,7 @@ function MyAttractions() {
 
       // Create EventSchedule
       await axios.post(
-        `/api/groups/${slug}/schedule`,
+        `/api/schedules/${slug}`,
         {
           eventId,
           startDateTime: startDateTime.toISOString(),

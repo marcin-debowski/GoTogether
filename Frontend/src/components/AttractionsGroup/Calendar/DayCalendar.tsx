@@ -58,7 +58,7 @@ function DayCalendar({
           params.userId = userId;
         }
 
-        const res = await axios.get(`/api/groups/${slug}/schedule`, {
+        const res = await axios.get(`/api/schedules/${slug}`, {
           params,
           withCredentials: true,
         });
@@ -149,7 +149,7 @@ function DayCalendar({
     if (!window.confirm("Are you sure you want to delete this event?")) return;
 
     try {
-      await axios.delete(`/api/groups/${slug}/schedule/${scheduleId}`, {
+      await axios.delete(`/api/schedules/${slug}/${scheduleId}`, {
         withCredentials: true,
       });
 
@@ -164,7 +164,7 @@ function DayCalendar({
   const handleAddToMyCalendar = async (event: any) => {
     try {
       await axios.post(
-        `/api/groups/${slug}/schedule`,
+        `/api/schedules/${slug}`,
         {
           eventId: event.eventId._id,
           startDateTime: event.startDateTime,

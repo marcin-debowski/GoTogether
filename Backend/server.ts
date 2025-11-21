@@ -18,7 +18,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/groups", groupRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/events", eventRoutes);
-app.use("/api/groups", eventScheduleRoutes);
+app.use("/api/schedules", eventScheduleRoutes);
 connectDB()
   .then(() => {
     app.listen(PORT, () => {
